@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 import openai
 from dotenv import load_dotenv
 load_dotenv()
@@ -32,12 +33,16 @@ class Person4_0(Person):
 
         # Define the juror's task and perspective
         juror_role = (
-            f"You are {self.name}, a juror. {self.background_story.strip()} "
-            f"Your task is to decide if the accused is guilty (1) or not guilty (0). "
-            f"Start your reply with '1' or '0', followed by an explanation of your decision. "
+            f"You are {self.name}. {self.background_story.strip()} "
+            "Your background indicates the initial vote you should be using for your first response; this is your initial stance for experimental grouping purposes. "
+            "During deliberation, review the evidence and engage with your fellow jurors' arguments. "
+            "You are free to re-evaluate your position based on the discussion, but remember your initial stance as stated in your background. "
+            f"No matter what your stance is, and even if you have no new arguments to add, You must start every single response with '1' or '0', followed by an explanation of your decision."
             f"Example: '1. I believe the evidence is strong because...' or '0. There is reasonable doubt because...'. "
             f"Scenario: {experiment_scenario}. "
-            f"Consider the prior conversation when making your decision."
+            f"Consider the entire discussion (available in chat_history) when deliberating, ensuring that your response builds on the discussion rather than repeating previous responses."
+            "Do not simply repeat previous statements; instead, build upon and strengthen or critique the arguments already presented."
+            f"Limit your response to up to 150 words."
         )
 
         # Create the GPT-4 prompt
@@ -46,13 +51,15 @@ class Person4_0(Person):
             {"role": "user", "content": f"Conversation so far:\n{chat_history}"}
         ]
 
+        time.sleep(10)  # Sleep for 10 seconds to avoid rate-limit issues
+
         # Call GPT-4 for the response
         try:
             response = openai.ChatCompletion.create(
                 model=self.model_name,
                 messages=generated_prompt,
-                max_tokens=200,
-                temperature=0.7,  # Add randomness to simulate deliberation
+                max_tokens=10000,
+                temperature=0.9,  # Add randomness to simulate deliberation
             )
             output_text = response.choices[0].message['content']
             return ChatEntry(entity=self, prompt=generated_prompt, answer=output_text.strip())
@@ -80,7 +87,18 @@ class Person4_0(Person):
                                                          f" {experiment_scenario}"}
         system_message = {"role": "system", "content": f"This is your background story:"
                                                        f" {self.background_story}"}
-        conversation = [name_message, scenario_message, system_message]
+        judicial_instructions = {"role": "system",
+            "content": ("Please note the following judicial instructions: In a robbery under CALCRIM No. 1600, the defendant took property not belonging to them "
+            "from the person or immediate presence of another; the property was taken against that person’s will; the taking was accomplished by force or fear; "
+            "and the defendant “specifically intended” to permanently deprive the owner of the property (or deprive them of it long enough to remove a major portion of its value). "
+            "“Immediate presence” means the property was physically close enough for the victim to have some control if not for the defendant’s force or fear. "
+            "“Fear” may arise from threats of harm, express or implied, and the prosecution must prove the defendant used force or fear to carry out the taking or to prevent resistance. "
+            "If the defendant personally used a firearm or other dangerous weapon, an enhanced penalty may apply; to “use” a weapon means displaying it in a threatening way, "
+            "striking someone with it, or otherwise facilitating the robbery through the weapon’s presence. All criminal charges, including robbery, must be proven beyond a "
+            "reasonable doubt (CALCRIM No. 220)."
+            )
+        }
+        conversation = [name_message, scenario_message, system_message, judicial_instructions]
 
         # Prepare chat conversation history
         other_users_prompt = ""
@@ -106,7 +124,7 @@ class Person4_0(Person):
         # Include refined context for GPT-4
         conversation.append({
             "role": "system",
-            "content": "You are GPT-4, a highly advanced language model with superior reasoning abilities. Provide responses considering the entire conversation context."
+            "content": "You are GPT-4, a highly advanced language model with superior reasoning abilities. Provide responses considering the entire conversation context of both you and the other jurors. limit each response to up to 150 words."
         })
 
         return conversation
