@@ -24,6 +24,7 @@ class EndTypeUnanimity(EndType):
         super().__init__(*args, **kwargs)
         self.max_num_msgs = max_num_msgs
         self.unanimity_status = None
+        self.rounds = 0
 
     def is_unanimous(self, session_room: SessionRoom):
         """
@@ -44,7 +45,7 @@ class EndTypeUnanimity(EndType):
         # Get the latest message's vote
         last_message = session_room.chat_room[-1].answer.strip()
         current_entity = session_room.chat_room[-1].entity
-        print(f"Processing vote: {last_message}, Entity: {current_entity}")  # Debug
+        print(f"Processing vote: {current_entity.name}: \"{last_message}\"")  # Debug
 
         # Error handle invalid input (for the main flow, not survey)
         if last_message[0] not in "01":
@@ -76,14 +77,18 @@ class EndTypeUnanimity(EndType):
         :param session_room: The session room containing the chat and experiment data.
         :return: True if the session should end, False otherwise.
         """
+        self.rounds = 0
 
         if self.is_unanimous(session_room):
             print(f"\033[92mUnanimity reached: {self.unanimity_status}\033[0m")
+            self.rounds = session_room.session_length // len(session_room.experiment.persons)
             return True
 
         # Fallback: Check max message limit
         if session_room.session_length >= self.max_num_msgs:
+            self.unanimity_status = "Hung"
             print(f"\033[93mMaximum allowed number of messages reached.\033[0m")  # Yellow for warning
+            self.rounds = session_room.session_length // len(session_room.experiment.persons)
             return True
 
         return False
